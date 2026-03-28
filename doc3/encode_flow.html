@@ -1,0 +1,504 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>vvenc — 单帧编码流程</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+    background: #0f1117;
+    color: #e2e8f0;
+    min-height: 100vh;
+    padding: 32px 24px;
+  }
+
+  h1 {
+    text-align: center;
+    font-size: 22px;
+    font-weight: 600;
+    letter-spacing: 1px;
+    color: #93c5fd;
+    margin-bottom: 6px;
+  }
+  .subtitle {
+    text-align: center;
+    font-size: 13px;
+    color: #64748b;
+    margin-bottom: 40px;
+  }
+
+  /* ── layout ── */
+  .diagram {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0;
+    position: relative;
+  }
+
+  /* ── nodes ── */
+  .node {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    border-radius: 10px;
+    padding: 10px 20px;
+    min-width: 220px;
+    max-width: 280px;
+    text-align: center;
+    position: relative;
+    cursor: default;
+    transition: transform 0.15s, box-shadow 0.15s;
+  }
+  .node:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 24px rgba(0,0,0,0.5);
+  }
+  .node .title {
+    font-size: 14px;
+    font-weight: 600;
+  }
+  .node .sub {
+    font-size: 11px;
+    margin-top: 3px;
+    opacity: 0.75;
+    line-height: 1.4;
+  }
+  .node .tag {
+    font-size: 10px;
+    border-radius: 4px;
+    padding: 1px 6px;
+    margin-top: 5px;
+    font-weight: 600;
+    letter-spacing: 0.5px;
+  }
+
+  /* ── colors ── */
+  .c-input   { background: #1e293b; border: 1.5px solid #475569; color: #94a3b8; }
+  .c-pre     { background: #1a2744; border: 1.5px solid #3b5bdb; color: #91b4fd; }
+  .c-mctf    { background: #1a2744; border: 1.5px solid #3b5bdb; color: #91b4fd; }
+  .c-gop     { background: #1c2436; border: 1.5px solid #4c6ef5; color: #a5b4fc; }
+  .c-slice   { background: #1c2436; border: 1.5px solid #4c6ef5; color: #a5b4fc; }
+  .c-cu      { background: #192033; border: 1.5px solid #6366f1; color: #c7d2fe; }
+  .c-intra   { background: #1e1b35; border: 1.5px solid #7c3aed; color: #c4b5fd; }
+  .c-inter   { background: #1e1b35; border: 1.5px solid #7c3aed; color: #c4b5fd; }
+  .c-trq     { background: #1e2535; border: 1.5px solid #0ea5e9; color: #7dd3fc; }
+  .c-lf      { background: #14261e; border: 1.5px solid #059669; color: #6ee7b7; }
+  .c-sao     { background: #14261e; border: 1.5px solid #059669; color: #6ee7b7; }
+  .c-alf     { background: #14261e; border: 1.5px solid #059669; color: #6ee7b7; }
+  .c-cabac   { background: #261e14; border: 1.5px solid #d97706; color: #fcd34d; }
+  .c-rc      { background: #261420; border: 1.5px solid #e11d48; color: #fda4af; }
+  .c-output  { background: #1a2a1a; border: 1.5px solid #22c55e; color: #86efac; }
+
+  /* tag colors */
+  .tag-sdk    { background: #334155; color: #94a3b8; }
+  .tag-pre    { background: #1e3a8a; color: #93c5fd; }
+  .tag-enc    { background: #312e81; color: #a5b4fc; }
+  .tag-pred   { background: #3b0764; color: #e9d5ff; }
+  .tag-tf     { background: #0c4a6e; color: #7dd3fc; }
+  .tag-lf     { background: #064e3b; color: #6ee7b7; }
+  .tag-ent    { background: #451a03; color: #fed7aa; }
+  .tag-rc     { background: #4c0519; color: #fecdd3; }
+  .tag-out    { background: #14532d; color: #bbf7d0; }
+
+  /* ── arrows ── */
+  .arrow {
+    width: 2px;
+    background: linear-gradient(to bottom, #334155, #475569);
+    position: relative;
+  }
+  .arrow::after {
+    content: '';
+    position: absolute;
+    bottom: -1px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 0; height: 0;
+    border-left: 6px solid transparent;
+    border-right: 6px solid transparent;
+    border-top: 9px solid #475569;
+  }
+  .arrow-short { height: 20px; }
+  .arrow-mid   { height: 28px; }
+
+  /* ── parallel block ── */
+  .parallel-wrapper {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    width: 100%;
+    max-width: 760px;
+  }
+
+  .parallel-label {
+    font-size: 11px;
+    color: #64748b;
+    margin-bottom: 4px;
+    letter-spacing: 0.5px;
+  }
+
+  .parallel-row {
+    display: flex;
+    align-items: flex-start;
+    gap: 0;
+    justify-content: center;
+    width: 100%;
+  }
+
+  .parallel-col {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0;
+  }
+
+  .parallel-bar {
+    height: 2px;
+    background: #334155;
+    flex: 1;
+    min-width: 40px;
+    max-width: 80px;
+    align-self: flex-start;
+    margin-top: 26px; /* align with top of node */
+  }
+
+  /* ── CU detail box ── */
+  .cu-detail {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    border: 1px dashed #334155;
+    border-radius: 12px;
+    padding: 16px 24px;
+    gap: 0;
+    background: #111827;
+  }
+  .cu-detail-label {
+    font-size: 11px;
+    color: #4b5563;
+    margin-bottom: 10px;
+    letter-spacing: 0.5px;
+  }
+
+  /* pred split */
+  .pred-row {
+    display: flex;
+    gap: 20px;
+    align-items: flex-start;
+  }
+  .pred-col {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0;
+  }
+  .pred-join-bar {
+    height: 2px;
+    background: #334155;
+    width: 20px;
+    align-self: flex-start;
+    margin-top: 26px;
+  }
+
+  /* ── RC sidebar ── */
+  .rc-sidebar {
+    position: fixed;
+    right: 24px;
+    top: 50%;
+    transform: translateY(-50%);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    opacity: 0.85;
+  }
+  .rc-label {
+    font-size: 10px;
+    color: #e11d48;
+    writing-mode: vertical-rl;
+    letter-spacing: 1.5px;
+    font-weight: 600;
+  }
+  .rc-bar {
+    width: 3px;
+    height: 340px;
+    background: linear-gradient(to bottom, #e11d48 0%, #9f1239 100%);
+    border-radius: 2px;
+  }
+  .rc-node-small {
+    background: #261420;
+    border: 1.5px solid #e11d48;
+    border-radius: 8px;
+    padding: 6px 10px;
+    font-size: 11px;
+    color: #fda4af;
+    font-weight: 600;
+    text-align: center;
+    white-space: nowrap;
+  }
+  .rc-arrow {
+    font-size: 16px;
+    color: #e11d48;
+    line-height: 1;
+  }
+
+  /* ── tooltip ── */
+  .node[data-tip]:hover::before {
+    content: attr(data-tip);
+    position: absolute;
+    left: calc(100% + 12px);
+    top: 50%;
+    transform: translateY(-50%);
+    background: #1e293b;
+    border: 1px solid #334155;
+    border-radius: 8px;
+    padding: 8px 12px;
+    font-size: 11px;
+    color: #cbd5e1;
+    white-space: pre-line;
+    width: 220px;
+    line-height: 1.6;
+    z-index: 100;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.6);
+    pointer-events: none;
+  }
+
+  /* ── legend ── */
+  .legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    justify-content: center;
+    margin-top: 40px;
+    padding: 16px 20px;
+    background: #111827;
+    border: 1px solid #1e293b;
+    border-radius: 12px;
+    max-width: 700px;
+    margin-left: auto;
+    margin-right: auto;
+  }
+  .legend-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 11px;
+    color: #94a3b8;
+  }
+  .legend-dot {
+    width: 10px; height: 10px;
+    border-radius: 3px;
+  }
+</style>
+</head>
+<body>
+
+<!-- Rate Control sidebar -->
+<div class="rc-sidebar">
+  <div class="rc-label">RateCtrl — QP 反馈贯穿全流程</div>
+  <div class="rc-node-small">EncRCSeq<br>序列级</div>
+  <div class="rc-arrow">↕</div>
+  <div class="rc-node-small">EncRCPic<br>图像级</div>
+  <div class="rc-arrow">↕</div>
+  <div class="rc-node-small">clipTargetQP<br>QP 裁剪</div>
+</div>
+
+<h1>vvenc — 单帧编码主流程</h1>
+<div class="subtitle">鼠标悬停节点查看详情 &nbsp;·&nbsp; 右侧 RateCtrl 贯穿整个流水线</div>
+
+<div class="diagram">
+
+  <!-- INPUT -->
+  <div class="node c-input"
+       data-tip="原始 YUV 图像帧&#10;支持 8/10/12-bit&#10;420/422/444 色度格式">
+    <div class="title">输入 YUV 帧</div>
+    <div class="sub">原始像素数据 · PelStorage</div>
+    <span class="tag tag-sdk">INPUT</span>
+  </div>
+  <div class="arrow arrow-short"></div>
+
+  <!-- PREPROCESS -->
+  <div class="node c-pre"
+       data-tip="PreProcess::processPicture()&#10;· 视觉活动度量 (QPA)&#10;· 空间/时域活动分析&#10;· STA 静止区域检测&#10;· 场景切换检测&#10;· GOP 结构决策">
+    <div class="title">PreProcess</div>
+    <div class="sub">视觉活动分析 · 场景切换检测 · GOP 决策</div>
+    <span class="tag tag-pre">预处理</span>
+  </div>
+  <div class="arrow arrow-short"></div>
+
+  <!-- MCTF -->
+  <div class="node c-mctf"
+       data-tip="MCTF (可选)&#10;运动补偿时域滤波&#10;· 前后各 ±6 帧参考&#10;· 降低时域噪声&#10;· 提升压缩效率">
+    <div class="title">MCTF</div>
+    <div class="sub">运动补偿时域滤波（可选）</div>
+    <span class="tag tag-pre">预处理</span>
+  </div>
+  <div class="arrow arrow-short"></div>
+
+  <!-- ENC GOP -->
+  <div class="node c-gop"
+       data-tip="EncGOP::encodePicture()&#10;· 写入 VPS / SPS / PPS&#10;· 选择参考图像列表&#10;· SEI 消息生成&#10;· LMCS 色域重映射 (EncReshape)&#10;· HRD 合规控制">
+    <div class="title">EncGOP</div>
+    <div class="sub">参数集写入 · 参考帧管理 · SEI · LMCS</div>
+    <span class="tag tag-enc">GOP 编码</span>
+  </div>
+  <div class="arrow arrow-short"></div>
+
+  <!-- ENC PICTURE -->
+  <div class="node c-gop"
+       data-tip="EncPicture::compressPicture()&#10;· 协调 Slice 编码&#10;· 调度环路滤波&#10;· finalizePicture() 收尾">
+    <div class="title">EncPicture</div>
+    <div class="sub">图像级压缩调度</div>
+    <span class="tag tag-enc">图像编码</span>
+  </div>
+  <div class="arrow arrow-short"></div>
+
+  <!-- ENC SLICE (parallel CTU rows) -->
+  <div class="parallel-wrapper">
+    <div class="parallel-label">▼ EncSlice — 多线程 CTU 行并行 ▼</div>
+    <div class="node c-slice" style="max-width:320px;"
+         data-tip="EncSlice::encodeSlice()&#10;· 每 CTU 行独立线程&#10;· 原子状态机 ProcessCtuState&#10;· 任务顺序:&#10;  CTU_ENCODE → RESHAPE_LF_VER&#10;  → LF_HOR → SAO → ALF&#10;  → FINISH_SLICE">
+      <div class="title">EncSlice</div>
+      <div class="sub">Slice 编码 · CTU 行级多线程并行</div>
+      <span class="tag tag-enc">Slice 编码</span>
+    </div>
+  </div>
+  <div class="arrow arrow-short"></div>
+
+  <!-- CU DETAIL BOX -->
+  <div class="cu-detail">
+    <div class="cu-detail-label">▼ EncCu — 每个 CTU/CU 的模式决策循环 ▼</div>
+
+    <!-- EncCu -->
+    <div class="node c-cu" style="max-width:320px;"
+         data-tip="EncCu::xCompressCU()&#10;· 递归四叉树/二叉树/三叉树划分&#10;· EncModeCtrl 控制候选模式列表&#10;· 选择最优 RD 代价模式&#10;· 支持模式: SKIP/MERGE/INTER/INTRA/IBC">
+      <div class="title">EncCu</div>
+      <div class="sub">CU 模式决策 · QT/BT/TT 递归划分</div>
+      <span class="tag tag-enc">CU 编码</span>
+    </div>
+    <div class="arrow arrow-short"></div>
+
+    <!-- PRED SPLIT -->
+    <div class="pred-row">
+      <!-- INTRA branch -->
+      <div class="pred-col">
+        <div class="node c-intra"
+             data-tip="IntraSearch::estIntraPredLumaQT()&#10;· 测试全部 67 种角度模式&#10;· MRL 多参考行&#10;· ISP 帧内子分区&#10;· PDPC 位置相关预测校正&#10;· 保留最优 N 个候选精测">
+          <div class="title">IntraSearch</div>
+          <div class="sub">帧内预测模式搜索&#10;67种角度 · MRL · ISP</div>
+          <span class="tag tag-pred">帧内预测</span>
+        </div>
+      </div>
+
+      <div class="pred-join-bar"></div>
+      <div style="font-size:22px; color:#334155; align-self:center; margin:0 4px; margin-top:-8px;">⟷</div>
+      <div class="pred-join-bar"></div>
+
+      <!-- INTER branch -->
+      <div class="pred-col">
+        <div class="node c-inter"
+             data-tip="InterSearch::predInterSearch()&#10;· 全搜索 / 快速运动估计&#10;· 支持 1/4 像素精度&#10;· Merge / MMVD / CIIP 模式&#10;· 仿射运动 (4/6 参数)&#10;· BDOF 双向光流精化&#10;· BlkUniMvInfoBuffer 缓存复用">
+          <div class="title">InterSearch</div>
+          <div class="sub">运动估计 · Merge/MMVD&#10;仿射运动 · BDOF</div>
+          <span class="tag tag-pred">帧间预测</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="arrow arrow-short"></div>
+
+    <!-- TRQUANT -->
+    <div class="node c-trq" style="max-width:320px;"
+         data-tip="TrQuant::transformNxN()&#10;· DCT-2 / DST-7 / DCT-8&#10;· LFNST 低频不可分变换&#10;· ICT 整数色彩变换&#10;· DepQuant 依赖量化&#10;· 反量化 + 反变换重建残差">
+      <div class="title">TrQuant</div>
+      <div class="sub">正/反变换 · DCT/DST/LFNST · 依赖量化 (DepQuant)</div>
+      <span class="tag tag-tf">变换量化</span>
+    </div>
+
+  </div><!-- end cu-detail -->
+
+  <div class="arrow arrow-mid"></div>
+
+  <!-- LOOP FILTERS (parallel 3 columns) -->
+  <div class="parallel-wrapper">
+    <div class="parallel-label">▼ 环路滤波（按 CTU 流水执行）▼</div>
+    <div class="parallel-row">
+      <div class="parallel-bar"></div>
+
+      <div style="display:flex; gap:16px; align-items:flex-start;">
+        <div class="pred-col">
+          <div class="node c-lf"
+               data-tip="LoopFilter::xDeblockArea()&#10;· 消除块边界效应&#10;· 基于 sm_tcTable / sm_betaTable&#10;· 水平 + 垂直方向分两步&#10;· 强/弱滤波自适应选择">
+            <div class="title">LoopFilter</div>
+            <div class="sub">去块滤波</div>
+            <span class="tag tag-lf">LF</span>
+          </div>
+        </div>
+
+        <div style="font-size:16px;color:#1e3a2a;align-self:center;margin-top:-8px;">→</div>
+
+        <div class="pred-col">
+          <div class="node c-sao"
+               data-tip="SAO::calcSaoStatisticsBo()&#10;· 样点自适应偏移&#10;· 边缘偏移 (EO) 4方向&#10;· 带偏移 (BO) 32个带&#10;· CTU 级独立决策">
+            <div class="title">SAO</div>
+            <div class="sub">样点自适应偏移</div>
+            <span class="tag tag-lf">SAO</span>
+          </div>
+        </div>
+
+        <div style="font-size:16px;color:#1e3a2a;align-self:center;margin-top:-8px;">→</div>
+
+        <div class="pred-col">
+          <div class="node c-alf"
+               data-tip="EncAdaptiveLoopFilter&#10;· 128×128 分类块&#10;· 方向分类: HOR/VER/DIAG0/DIAG1&#10;· Wiener 最优滤波器设计&#10;· 4个自适应裁剪值&#10;· Luma/Chroma 独立滤波">
+            <div class="title">ALF</div>
+            <div class="sub">自适应环路滤波</div>
+            <span class="tag tag-lf">ALF</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="parallel-bar"></div>
+    </div>
+  </div>
+
+  <div class="arrow arrow-mid"></div>
+
+  <!-- CABAC -->
+  <div class="node c-cabac"
+       data-tip="CABACWriter::coding_tree_unit()&#10;· 上下文自适应二进制算术编码&#10;· 编码语法元素:&#10;  CU 划分 / 预测模式&#10;  运动矢量 / 变换系数&#10;  滤波参数 (SAO/ALF)&#10;· BinEncIf 二进制编码接口">
+    <div class="title">CABACWriter</div>
+    <div class="sub">上下文自适应算术熵编码 · 语法元素序列化</div>
+    <span class="tag tag-ent">熵编码</span>
+  </div>
+  <div class="arrow arrow-short"></div>
+
+  <!-- OUTPUT -->
+  <div class="node c-output"
+       data-tip="OutputBitstream / AccessUnitList&#10;· NALU 封装&#10;· 字节对齐填充&#10;· VPS/SPS/PPS + 图像数据&#10;· SEI 消息附加&#10;· 返回给 VVEncImpl">
+    <div class="title">输出 Access Unit</div>
+    <div class="sub">NALU 封装 · 码流输出 · OutputBitstream</div>
+    <span class="tag tag-out">OUTPUT</span>
+  </div>
+
+</div><!-- end diagram -->
+
+<!-- LEGEND -->
+<div class="legend">
+  <div class="legend-item"><div class="legend-dot" style="background:#475569"></div>输入/输出</div>
+  <div class="legend-item"><div class="legend-dot" style="background:#3b5bdb"></div>预处理阶段</div>
+  <div class="legend-item"><div class="legend-dot" style="background:#4c6ef5"></div>GOP/Slice/图像编码</div>
+  <div class="legend-item"><div class="legend-dot" style="background:#6366f1"></div>CU 模式决策</div>
+  <div class="legend-item"><div class="legend-dot" style="background:#7c3aed"></div>预测搜索</div>
+  <div class="legend-item"><div class="legend-dot" style="background:#0ea5e9"></div>变换量化</div>
+  <div class="legend-item"><div class="legend-dot" style="background:#059669"></div>环路滤波</div>
+  <div class="legend-item"><div class="legend-dot" style="background:#d97706"></div>熵编码</div>
+  <div class="legend-item"><div class="legend-dot" style="background:#e11d48"></div>RateCtrl (贯穿全程)</div>
+</div>
+
+</body>
+</html>
