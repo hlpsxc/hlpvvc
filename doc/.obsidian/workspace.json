@@ -1,0 +1,203 @@
+{
+  "main": {
+    "id": "1fb8cb487cdc3b85",
+    "type": "split",
+    "children": [
+      {
+        "id": "d4b1fdd74eb40eb3",
+        "type": "tabs",
+        "children": [
+          {
+            "id": "a45e7437dd648c7e",
+            "type": "leaf",
+            "state": {
+              "type": "markdown",
+              "state": {
+                "file": "vvenc-EncGOP类分析.md",
+                "mode": "source",
+                "source": false
+              },
+              "icon": "lucide-file",
+              "title": "vvenc-EncGOP类分析"
+            }
+          }
+        ]
+      }
+    ],
+    "direction": "vertical"
+  },
+  "left": {
+    "id": "918f9663d876f54f",
+    "type": "split",
+    "children": [
+      {
+        "id": "612c067e98518723",
+        "type": "tabs",
+        "children": [
+          {
+            "id": "8c3fcbb3bf8b87e2",
+            "type": "leaf",
+            "state": {
+              "type": "file-explorer",
+              "state": {
+                "sortOrder": "alphabetical",
+                "autoReveal": false
+              },
+              "icon": "lucide-folder-closed",
+              "title": "文件列表"
+            }
+          },
+          {
+            "id": "8a55fad4c30f4ec0",
+            "type": "leaf",
+            "state": {
+              "type": "search",
+              "state": {
+                "query": "",
+                "matchingCase": false,
+                "explainSearch": false,
+                "collapseAll": false,
+                "extraContext": false,
+                "sortOrder": "alphabetical"
+              },
+              "icon": "lucide-search",
+              "title": "搜索"
+            }
+          },
+          {
+            "id": "4dc440f4bcdfd56b",
+            "type": "leaf",
+            "state": {
+              "type": "bookmarks",
+              "state": {},
+              "icon": "lucide-bookmark",
+              "title": "书签"
+            }
+          }
+        ]
+      }
+    ],
+    "direction": "horizontal",
+    "width": 300
+  },
+  "right": {
+    "id": "9416bd14fc06cec9",
+    "type": "split",
+    "children": [
+      {
+        "id": "1707eed661284b97",
+        "type": "tabs",
+        "children": [
+          {
+            "id": "693e008191618e9e",
+            "type": "leaf",
+            "state": {
+              "type": "backlink",
+              "state": {
+                "file": "vvenc-EncGOP类分析.md",
+                "collapseAll": false,
+                "extraContext": false,
+                "sortOrder": "alphabetical",
+                "showSearch": false,
+                "searchQuery": "",
+                "backlinkCollapsed": false,
+                "unlinkedCollapsed": true
+              },
+              "icon": "links-coming-in",
+              "title": "vvenc-EncGOP类分析 的反向链接列表"
+            }
+          },
+          {
+            "id": "5ff517d7e21bc3d8",
+            "type": "leaf",
+            "state": {
+              "type": "outgoing-link",
+              "state": {
+                "file": "vvenc-EncGOP类分析.md",
+                "linksCollapsed": false,
+                "unlinkedCollapsed": true
+              },
+              "icon": "links-going-out",
+              "title": "vvenc-EncGOP类分析 的出链列表"
+            }
+          },
+          {
+            "id": "1ad114841a0c6ede",
+            "type": "leaf",
+            "state": {
+              "type": "tag",
+              "state": {
+                "sortOrder": "frequency",
+                "useHierarchy": true,
+                "showSearch": false,
+                "searchQuery": ""
+              },
+              "icon": "lucide-tags",
+              "title": "标签"
+            }
+          },
+          {
+            "id": "ac825abcd1a240b1",
+            "type": "leaf",
+            "state": {
+              "type": "all-properties",
+              "state": {
+                "sortOrder": "frequency",
+                "showSearch": false,
+                "searchQuery": ""
+              },
+              "icon": "lucide-archive",
+              "title": "添加笔记属性"
+            }
+          },
+          {
+            "id": "cf4aeda1c03b82fc",
+            "type": "leaf",
+            "state": {
+              "type": "outline",
+              "state": {
+                "file": "vvenc-EncGOP类分析.md",
+                "followCursor": false,
+                "showSearch": false,
+                "searchQuery": ""
+              },
+              "icon": "lucide-list",
+              "title": "vvenc-EncGOP类分析 的大纲"
+            }
+          }
+        ]
+      }
+    ],
+    "direction": "horizontal",
+    "width": 300,
+    "collapsed": true
+  },
+  "left-ribbon": {
+    "hiddenItems": {
+      "switcher:打开快速切换": false,
+      "graph:查看关系图谱": false,
+      "canvas:新建白板": false,
+      "daily-notes:打开/创建今天的日记": false,
+      "templates:插入模板": false,
+      "command-palette:打开命令面板": false,
+      "bases:新建数据库": false
+    }
+  },
+  "active": "a45e7437dd648c7e",
+  "lastOpenFiles": [
+    "vvenc-IntraSearch类分析.md",
+    "image/vvenc-常用类总览",
+    "image",
+    "vvenc-EncModeCtrl类分析.md",
+    "vvenc-RateCtrl类分析.md",
+    "vvenc-EncSlice类分析.md",
+    "vvenc-EncPicture类分析.md",
+    "vvenc-C++特性与设计模式分析.md",
+    "vvenc-MCTF类分析.md",
+    "vvenc-数据结构总览.md",
+    "vvenc-PreProcess类分析.md",
+    "vvenc-EncGOP类分析.md",
+    "vvenc-常用类总览.md",
+    "vvenc-编码过程分析.md"
+  ]
+}
